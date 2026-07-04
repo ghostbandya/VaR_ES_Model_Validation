@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>VaR/ES Model Validation & Backtesting Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.27.0/plotly.min.js"></script>
+<style>
+  :root{
+    --bg:#0b1220; --panel:#111a2e; --panel2:#0e1626; --border:#213152;
+    --text:#e7ecf5; --muted:#8ea0c4; --accent:#4c9aff;
+    --hs:#4c9aff; --param:#ff8b00; --mc:#8b6cf0;
+    --green:#00875a; --yellow:#c98a00; --red:#de350b;
+    --greenbg:#0d2b22; --yellowbg:#2b2408; --redbg:#2b1310;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;}
+  header{padding:24px 32px 16px;border-bottom:1px solid var(--border);}
+  header h1{margin:0 0 4px;font-size:22px;font-weight:600;}
+  header p{margin:0;color:var(--muted);font-size:13px;}
+  .container{padding:20px 32px 60px;max-width:1400px;margin:0 auto;}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:24px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px 16px;}
+  .card .label{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;}
+  .card .value{font-size:19px;font-weight:600;}
+  .card .sub{color:var(--muted);font-size:12px;margin-top:2px;}
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:20px;flex-wrap:wrap;}
+  .tab{padding:10px 16px;cursor:pointer;color:var(--muted);font-size:13px;font-weight:500;border-bottom:2px solid transparent;user-select:none;}
+  .tab:hover{color:var(--text);}
+  .tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+  .tabpanel{display:none;}
+  .tabpanel.active{display:block;}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:20px;}
+  .panel h2{margin:0 0 4px;font-size:15px;}
+  .panel .desc{color:var(--muted);font-size:12.5px;margin:0 0 14px;line-height:1.5;}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);}
+  th{color:var(--muted);font-weight:600;text-transform:uppercase;font-size:10.5px;letter-spacing:.03em;}
+  tr:last-child td{border-bottom:none;}
+  .pill{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;}
+  .pill.pass{background:#0d2b22;color:#36b37e;}
+  .pill.fail{background:#2b1310;color:#ff6b52;}
+  .zonecards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:20px;}
+  .zonecard{border-radius:12px;padding:18px;border:1px solid var(--border);}
+  .zonecard.green{background:var(--greenbg);}
+  .zonecard.yellow{background:var(--yellowbg);}
+  .zonecard.red{background:var(--redbg);}
+  .zonecard .model{font-size:12px;color:var(--muted);margin-bottom:6px;}
+  .zonecard .zonelabel{font-size:20px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;}
+  .zonecard.green .zonelabel{color:#36b37e;}
+  .zonecard.yellow .zonelabel{color:#ffc94d;}
+  .zonecard.red .zonelabel{color:#ff6b52;}
+  .zonecard .detail{font-size:12px;color:var(--muted);margin-top:8px;}
+  .legend-row{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:12px;font-size:12px;color:var(--muted);}
+  .legend-row span.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+  @media (max-width:900px){.grid2{grid-template-columns:1fr;}}
+  .note{font-size:12px;color:var(--muted);background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-top:10px;line-height:1.6;}
+  .btnrow{display:flex;gap:8px;margin-bottom:12px;}
+  .btn{background:var(--panel2);border:1px solid var(--border);color:var(--muted);padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer;}
+  .btn.active{color:var(--text);border-color:var(--accent);color:var(--accent);}
+  footer{text-align:center;color:var(--muted);font-size:11px;padding:20px;}
+  code{background:var(--panel2);padding:1px 5px;border-radius:4px;}
+  .brief{background:linear-gradient(135deg,#132244,#0e1a33);border:1px solid #2a4a8a;border-radius:12px;padding:18px 20px;margin-bottom:22px;}
+  .brief .brieftop{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+  .brief .brieftitle{font-size:13px;font-weight:700;color:#8fc0ff;letter-spacing:.03em;text-transform:uppercase;}
+  .brief .briefdate{font-size:11px;color:var(--muted);}
+  .brief .brieftext{font-size:13.5px;line-height:1.65;color:#e7ecf5;white-space:pre-wrap;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>VaR / ES Model Validation &amp; Backtesting Dashboard</h1>
+  <p>Model Risk view — Historical Simulation vs. Parametric (Var-Cov) vs. Monte Carlo (Student-t), backtested against realized P&amp;L on real market data.</p>
+</header>
+
+<div class="container">
+
+  <div class="brief" id="briefPanel" style="display:none;">
+    <div class="brieftop">
+      <div class="brieftitle">Daily Model Risk Brief</div>
+      <div class="briefdate" id="briefDate"></div>
+    </div>
+    <div class="brieftext" id="briefText"></div>
+  </div>
+
+  <div class="cards" id="summaryCards"></div>
+
+  <div class="tabs" id="tabs">
+    <div class="tab active" data-tab="overview">Overview</div>
+    <div class="tab" data-tab="varplot">VaR &amp; ES</div>
+    <div class="tab" data-tab="backtest">Backtesting</div>
+    <div class="tab" data-tab="trafficlight">Basel Traffic Light</div>
+    <div class="tab" data-tab="challenger">Champion / Challenger</div>
+    <div class="tab" data-tab="drift">Performance Drift</div>
+  </div>
+
+  <!-- OVERVIEW -->
+  <div class="tabpanel active" id="tab-overview">
+    <div class="panel">
+      <h2>Sample Portfolio</h2>
+      <p class="desc">Static-weight multi-asset portfolio, marked daily against real historical closing prices.</p>
+      <table id="portfolioTable"></table>
+    </div>
+    <div class="grid2">
+      <div class="panel">
+        <h2>Methodology</h2>
+        <p class="desc" style="margin-bottom:6px;">
+        <b>VaR (99%, 1-day):</b> Basel backtesting standard.<br>
+        <b>Expected Shortfall (97.5%):</b> FRTB Internal Models Approach standard.<br>
+        <b>Estimation window:</b> trailing 250 trading days, rolled forward daily (fully out-of-sample).<br><br>
+        <b>Historical Simulation</b> — empirical quantile of trailing 250-day realized portfolio P&amp;L, no distributional assumption.<br>
+        <b>Parametric (Variance-Covariance)</b> — assumes joint-normal asset returns; portfolio variance from the trailing covariance matrix, VaR/ES from closed-form Normal quantiles.<br>
+        <b>Monte Carlo</b> — 5,000 correlated draws per day from a multivariate Student-t distribution, with degrees of freedom re-fit each window from the trailing realized kurtosis (captures fat tails that Parametric misses).
+        </p>
+      </div>
+      <div class="panel">
+        <h2>Current Basel Traffic-Light Zone</h2>
+        <p class="desc">Exceptions of the 99% VaR in the trailing 250 trading days, per model, as of the last observation.</p>
+        <div class="zonecards" id="currentZoneCards"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Cumulative Realized P&amp;L</h2>
+      <p class="desc">Out-of-sample portfolio P&amp;L path over the full backtest period, for context.</p>
+      <div id="cumPnlChart" style="height:340px;"></div>
+    </div>
+  </div>
+
+  <!-- VAR & ES -->
+  <div class="tabpanel" id="tab-varplot">
+    <div class="panel">
+      <h2>Realized P&amp;L vs. VaR / ES Thresholds</h2>
+      <p class="desc">Bars are realized daily P&amp;L. Lines are the negative of each model's forecast risk threshold for that day (computed from data available before that day only). A bar crossing below a line is an exception.</p>
+      <div class="btnrow">
+        <div class="btn active" data-metric="var99">VaR (99%)</div>
+        <div class="btn" data-metric="es975">Expected Shortfall (97.5%)</div>
+      </div>
+      <div id="varEsChart" style="height:480px;"></div>
+      <div class="note">Use the range slider below the chart, or the zoom buttons, to inspect specific stress periods (e.g. Feb 2018 vol spike, Dec 2018 sell-off, Mar 2020 COVID crash, 2022 rate-hike drawdown).</div>
+    </div>
+  </div>
+
+  <!-- BACKTEST -->
+  <div class="tabpanel" id="tab-backtest">
+    <div class="panel">
+      <h2>Kupiec POF &amp; Christoffersen Tests — Full Sample</h2>
+      <p class="desc">Kupiec tests whether the exception <i>rate</i> matches the model's stated confidence level (unconditional coverage). Christoffersen tests whether exceptions are <i>independent</i> over time rather than clustering (a model can pass Kupiec yet still fail independence if breaches bunch up in stress periods). Conditional coverage combines both. All tests at 95% significance.</p>
+      <table id="backtestTable"></table>
+      <div class="note" id="backtestNote"></div>
+    </div>
+    <div class="panel">
+      <h2>Exceptions by Calendar Year</h2>
+      <p class="desc">Number of 99% VaR exceptions per model, per year (expected ≈ 2-3 per 250-day year at 1% breach rate).</p>
+      <div id="yearlyExceptionsChart" style="height:360px;"></div>
+    </div>
+  </div>
+
+  <!-- TRAFFIC LIGHT -->
+  <div class="tabpanel" id="tab-trafficlight">
+    <div class="panel">
+      <h2>Basel Traffic-Light Framework</h2>
+      <p class="desc">Regulatory zone based on the count of 99% VaR exceptions in the trailing 250 trading days: <b>Green</b> 0–4 (model consistent with 99% confidence), <b>Yellow</b> 5–9 (possible capital multiplier add-on), <b>Red</b> 10+ (model presumed inaccurate, requires remediation).</p>
+      <div class="zonecards" id="trafficZoneCards"></div>
+      <div id="trafficLightChart" style="height:400px;"></div>
+    </div>
+  </div>
+
+  <!-- CHAMPION / CHALLENGER -->
+  <div class="tabpanel" id="tab-challenger">
+    <div class="panel">
+      <h2>Champion vs. Challenger Divergence</h2>
+      <p class="desc"><b>Champion model:</b> Historical Simulation (assumption-free, Model Risk's typical default). Parametric and Monte Carlo are run as <b>challengers</b>; days where a challenger's VaR differs from the champion's by more than 20% are flagged for review.</p>
+      <table id="challengerTable"></table>
+      <div id="challengerChart" style="height:420px;margin-top:16px;"></div>
+      <div class="note">Large, persistent divergence — especially Parametric consistently sitting <i>below</i> the champion — is itself a validation finding: it suggests the Normal-distribution assumption understates tail risk relative to what actually happened in the data.</div>
+    </div>
+  </div>
+
+  <!-- DRIFT -->
+  <div class="tabpanel" id="tab-drift">
+    <div class="panel">
+      <h2>Rolling Breach Rate (Drift Monitoring)</h2>
+      <p class="desc">Trailing 250-day exception rate per model vs. the expected 1% rate. Sustained drift above the dashed line signals the model is falling out of calibration and warrants re-estimation or escalation.</p>
+      <div id="rollingBreachChart" style="height:360px;"></div>
+    </div>
+    <div class="panel">
+      <h2>Risk Calibration Ratio</h2>
+      <p class="desc">Ratio of trailing 60-day realized P&amp;L volatility to each model's VaR-implied volatility. A ratio above 1 means realized risk is running hotter than the model predicts (potential VaR breach clustering ahead); below 1 means the model is conservative.</p>
+      <div id="calibrationChart" style="height:360px;"></div>
+    </div>
+  </div>
+
+</div>
+
+<footer>Illustrative model validation exercise on real market data — SPY / QQQ / TLT / GLD / EEM. Not investment advice.</footer>
+
+<script>
+const DATA = /*__DATA_JSON__*/;
+
+const fmtUSD = v => v==null ? '—' : (v<0?'-':'') + '$' + Math.abs(Math.round(v)).toLocaleString();
+const fmtUSDm = v => v==null ? '—' : (v<0?'-':'') + '$' + (Math.abs(v)/1e6).toFixed(2) + 'M';
+const fmtPct = (v,d=2) => v==null ? '—' : (v*100).toFixed(d)+'%';
+const fmtNum = (v,d=2) => v==null ? '—' : v.toFixed(d);
+const MODEL_COLORS = {hs:'#4c9aff', param:'#ff8b00', mc:'#8b6cf0'};
+const MODEL_NAMES = DATA.models;
+
+// ---------- Daily narrative brief (populated by the scheduled pipeline) ----------
+function buildBriefPanel(){
+  if(!DATA.narrative_brief) return;
+  document.getElementById('briefPanel').style.display = 'block';
+  document.getElementById('briefText').textContent = DATA.narrative_brief;
+  document.getElementById('briefDate').textContent = DATA.generated_at ? ('Generated ' + DATA.generated_at) : '';
+}
+
+// ---------- Summary cards ----------
+function buildSummaryCards(){
+  const s = DATA.summary;
+  const el = document.getElementById('summaryCards');
+  const cards = [
+    ['Portfolio Notional', '$' + (s.notional/1e6).toFixed(0) + 'M', '5-asset multi-class'],
+    ['Backtest Period', s.start_date + ' → ' + s.end_date, s.n_obs + ' trading days (out-of-sample)'],
+    ['Estimation Window', s.estimation_window + ' days', 'Rolled forward daily'],
+    ['VaR / ES Confidence', '99% / 97.5%', 'Basel / FRTB IMA standards'],
+    ['Worst Day', fmtUSDm(s.worst_day_pnl), s.worst_day_date],
+    ['Best Day', fmtUSDm(s.best_day_pnl), s.best_day_date],
+    ['Mean Daily P&L', fmtUSD(s.mean_realized_pnl), 'σ = ' + fmtUSDm(s.std_realized_pnl)],
+  ];
+  el.innerHTML = cards.map(c => `<div class="card"><div class="label">${c[0]}</div><div class="value">${c[1]}</div><div class="sub">${c[2]}</div></div>`).join('');
+}
+
+function buildPortfolioTable(){
+  const rows = DATA.summary.portfolio.map(p => `<tr><td><b>${p.ticker}</b></td><td>${p.desc}</td><td>${(p.weight*100).toFixed(0)}%</td><td>${fmtUSDm(p.weight*DATA.summary.notional)}</td></tr>`).join('');
+  document.getElementById('portfolioTable').innerHTML = `<tr><th>Ticker</th><th>Asset Class</th><th>Weight</th><th>Notional</th></tr>${rows}`;
+}
+
+function zoneCardHtml(modelKey, zoneObj){
+  if(!zoneObj) return '';
+  return `<div class="zonecard ${zoneObj.zone}">
+    <div class="model">${MODEL_NAMES[modelKey]}</div>
+    <div class="zonelabel">${zoneObj.zone}</div>
+    <div class="detail">${zoneObj.breach_count_250d} exceptions / 250d &middot; add-on ${zoneObj.multiplier_addon.toFixed(2)}</div>
+  </div>`;
+}
+
+function buildCurrentZoneCards(){
+  const cz = DATA.current_zone;
+  document.getElementById('currentZoneCards').innerHTML = Object.keys(cz).map(k => zoneCardHtml(k, cz[k])).join('');
+  document.getElementById('trafficZoneCards').innerHTML = Object.keys(cz).map(k => zoneCardHtml(k, cz[k])).join('');
+}
+
+// ---------- Overview: cumulative PnL ----------
+function buildCumPnlChart(){
+  const dates = DATA.timeseries.date;
+  const pnl = DATA.timeseries.realized_pnl;
+  let cum = []; let running = 0;
+  for(const v of pnl){ running += v; cum.push(running); }
+  Plotly.newPlot('cumPnlChart', [{
+    x: dates, y: cum, type:'scattergl', mode:'lines', line:{color:'#4c9aff', width:1.6}, fill:'tozeroy', fillcolor:'rgba(76,154,255,0.08)'
+  }], layoutBase({yaxis:{title:'Cumulative P&L ($)', tickformat:'$,.0f'}, xaxis:{title:''}}), plotConfig());
+}
+
+function layoutBase(extra){
+  return Object.assign({
+    paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)',
+    font:{color:'#8ea0c4', size:11},
+    margin:{l:60,r:20,t:10,b:40},
+    showlegend:true,
+    legend:{orientation:'h', y:1.12, font:{color:'#e7ecf5'}},
+    xaxis:{gridcolor:'#213152', color:'#8ea0c4'},
+    yaxis:{gridcolor:'#213152', color:'#8ea0c4'},
+  }, extra||{});
+}
+function plotConfig(){ return {responsive:true, displaylogo:false}; }
+
+// ---------- VaR & ES chart ----------
+let currentMetric = 'var99';
+function buildVarEsChart(metric){
+  const t = DATA.timeseries;
+  const dates = t.date;
+  const pnl = t.realized_pnl;
+  const colors = pnl.map(v => v<0 ? '#de350b' : '#2f9e6e');
+  const traces = [
+    {x:dates, y:pnl, type:'bar', name:'Realized P&L', marker:{color:colors}, opacity:0.55},
+  ];
+  ['hs','param','mc'].forEach(m=>{
+    const key = m+'_'+metric;
+    const negLine = t[key].map(v=>-v);
+    traces.push({x:dates, y:negLine, type:'scattergl', mode:'lines', name:MODEL_NAMES[m]+' -'+(metric==='var99'?'VaR99':'ES97.5'), line:{color:MODEL_COLORS[m], width:1.3}});
+  });
+  Plotly.newPlot('varEsChart', traces, layoutBase({
+    yaxis:{title:'$', tickformat:'$,.0f'},
+    barmode:'overlay',
+    xaxis:{rangeslider:{visible:true, thickness:0.06}, rangeselector:{
+      buttons:[
+        {count:1,label:'1Y',step:'year',stepmode:'backward'},
+        {count:3,label:'3Y',step:'year',stepmode:'backward'},
+        {count:5,label:'5Y',step:'year',stepmode:'backward'},
+        {step:'all',label:'All'}
+      ], font:{color:'#0b1220'}
+    }}
+  }), plotConfig());
+}
+
+// ---------- Backtest table + yearly exceptions ----------
+function buildBacktestTable(){
+  const ob = DATA.overall_backtest;
+  let rows = '';
+  Object.keys(ob).forEach(m=>{
+    const b = ob[m];
+    const k = b.kupiec, c = b.christoffersen;
+    rows += `<tr>
+      <td><b style="color:${MODEL_COLORS[m]}">${b.model}</b></td>
+      <td>${k.exceptions} / ${k.n_obs}</td>
+      <td>${fmtPct(k.exception_rate)}</td>
+      <td>${fmtPct(k.expected_rate)}</td>
+      <td>${fmtNum(k.lr_stat)}</td>
+      <td>${k.p_value<0.001?'<0.001':fmtNum(k.p_value,3)}</td>
+      <td><span class="pill ${k.reject_95?'fail':'pass'}">${k.reject_95?'FAIL':'PASS'}</span></td>
+      <td>${fmtNum(c.lr_ind)}</td>
+      <td>${c.p_value_ind<0.001?'<0.001':fmtNum(c.p_value_ind,3)}</td>
+      <td><span class="pill ${c.reject_ind_95?'fail':'pass'}">${c.reject_ind_95?'FAIL':'PASS'}</span></td>
+      <td><span class="pill ${c.reject_cc_95?'fail':'pass'}">${c.reject_cc_95?'FAIL':'PASS'}</span></td>
+    </tr>`;
+  });
+  document.getElementById('backtestTable').innerHTML = `<tr>
+    <th>Model</th><th>Exceptions</th><th>Rate</th><th>Expected</th>
+    <th>Kupiec LR</th><th>p-value</th><th>Kupiec</th>
+    <th>Christ. LR</th><th>p-value</th><th>Independence</th><th>Cond. Coverage</th>
+  </tr>${rows}`;
+
+  const passCount = Object.values(ob).filter(b=>!b.kupiec.reject_95).length;
+  document.getElementById('backtestNote').innerHTML = `Over the full ${DATA.summary.n_obs}-day out-of-sample window (spanning 2015-2016 volatility, Feb/Dec 2018 sell-offs, the March 2020 COVID crash, and the 2022 rate-hiking cycle), ${passCount} of 3 models pass the Kupiec unconditional coverage test at 95% significance. A model can pass Kupiec (correct average breach rate) while still failing Christoffersen independence if breaches cluster during stress regimes rather than occurring uniformly at random — that clustering is itself a model risk finding, since it means tail losses arrive correlated exactly when capital is most needed.`;
+}
+
+function buildYearlyExceptionsChart(){
+  const yb = DATA.yearly_backtest;
+  const years = yb.hs.map(r=>r.year);
+  const traces = ['hs','param','mc'].map(m=>({
+    x: years, y: yb[m].map(r=>r.exceptions), type:'bar', name: MODEL_NAMES[m], marker:{color:MODEL_COLORS[m]}
+  }));
+  Plotly.newPlot('yearlyExceptionsChart', traces, layoutBase({
+    barmode:'group', yaxis:{title:'Exceptions'}, xaxis:{title:'', dtick:1}
+  }), plotConfig());
+}
+
+// ---------- Traffic light chart ----------
+function buildTrafficLightChart(){
+  const zs = DATA.zone_series;
+  const traces = ['hs','param','mc'].map(m=>({
+    x: zs[m].map(r=>r.date), y: zs[m].map(r=>r.breach_count_250d), type:'scattergl', mode:'lines',
+    name: MODEL_NAMES[m], line:{color:MODEL_COLORS[m], width:1.5}
+  }));
+  const layout = layoutBase({
+    yaxis:{title:'Exceptions in trailing 250 days'},
+    shapes:[
+      {type:'rect', xref:'paper', x0:0, x1:1, y0:0, y1:4, fillcolor:'#00875a', opacity:0.08, line:{width:0}},
+      {type:'rect', xref:'paper', x0:0, x1:1, y0:4, y1:9, fillcolor:'#c98a00', opacity:0.10, line:{width:0}},
+      {type:'rect', xref:'paper', x0:0, x1:1, y0:9, y1:20, fillcolor:'#de350b', opacity:0.10, line:{width:0}},
+    ]
+  });
+  Plotly.newPlot('trafficLightChart', traces, layout, plotConfig());
+}
+
+// ---------- Champion / Challenger ----------
+function buildChallengerTable(){
+  const cs = DATA.challenger_stats;
+  let rows = '';
+  Object.keys(cs).forEach(k=>{
+    const c = cs[k];
+    rows += `<tr>
+      <td><b style="color:${MODEL_COLORS[k]}">${c.model}</b></td>
+      <td>${c.pct_days_flagged.toFixed(1)}%</td>
+      <td>${c.mean_rel_diff.toFixed(1)}%</td>
+      <td>${c.mean_abs_rel_diff.toFixed(1)}%</td>
+      <td>${c.min_rel_diff.toFixed(1)}% / ${c.max_rel_diff.toFixed(1)}%</td>
+      <td>${c.correlation_with_champion.toFixed(3)}</td>
+    </tr>`;
+  });
+  document.getElementById('challengerTable').innerHTML = `<tr>
+    <th>Challenger</th><th>% Days Flagged (&gt;20%)</th><th>Mean Diff vs. Champion</th>
+    <th>Mean |Diff|</th><th>Min / Max Diff</th><th>Correlation to Champion</th>
+  </tr>${rows}<tr><td colspan="6" style="color:var(--muted);font-size:11px;">Champion model: <b style="color:${MODEL_COLORS[DATA.champion]}">${MODEL_NAMES[DATA.champion]}</b></td></tr>`;
+}
+
+function buildChallengerChart(){
+  const ds = DATA.divergence_series;
+  const dates = ds.date;
+  const traces = [];
+  ['param','mc'].forEach(m=>{
+    traces.push({x:dates, y:ds[m+'_rel_diff'].map(v=>v*100), type:'scattergl', mode:'lines', name:MODEL_NAMES[m]+' vs champion', line:{color:MODEL_COLORS[m], width:1.2}});
+  });
+  const layout = layoutBase({
+    yaxis:{title:'Relative difference vs champion (%)'},
+    shapes:[
+      {type:'line', xref:'paper', x0:0, x1:1, y0:20, y1:20, line:{color:'#ffab00', width:1, dash:'dash'}},
+      {type:'line', xref:'paper', x0:0, x1:1, y0:-20, y1:-20, line:{color:'#ffab00', width:1, dash:'dash'}},
+    ]
+  });
+  Plotly.newPlot('challengerChart', traces, layout, plotConfig());
+}
+
+// ---------- Drift monitoring ----------
+function buildRollingBreachChart(){
+  const ds = DATA.drift_series;
+  const dates = ds.date;
+  const traces = ['hs','param','mc'].map(m=>({
+    x: dates, y: ds[m+'_rolling_breach_rate_pct'], type:'scattergl', mode:'lines', name: MODEL_NAMES[m], line:{color:MODEL_COLORS[m], width:1.3}
+  }));
+  const layout = layoutBase({
+    yaxis:{title:'Trailing 250d exception rate (%)'},
+    shapes:[{type:'line', xref:'paper', x0:0, x1:1, y0:ds.expected_breach_rate_pct, y1:ds.expected_breach_rate_pct, line:{color:'#e7ecf5', width:1, dash:'dash'}}]
+  });
+  Plotly.newPlot('rollingBreachChart', traces, layout, plotConfig());
+}
+
+function buildCalibrationChart(){
+  const ds = DATA.drift_series;
+  const dates = ds.date;
+  const traces = ['hs','param','mc'].map(m=>({
+    x: dates, y: ds[m+'_calibration_ratio'], type:'scattergl', mode:'lines', name: MODEL_NAMES[m], line:{color:MODEL_COLORS[m], width:1.1}, opacity:0.85
+  }));
+  const layout = layoutBase({
+    yaxis:{title:'Realized vol / VaR-implied vol'},
+    shapes:[{type:'line', xref:'paper', x0:0, x1:1, y0:1, y1:1, line:{color:'#e7ecf5', width:1, dash:'dash'}}]
+  });
+  Plotly.newPlot('calibrationChart', traces, layout, plotConfig());
+}
+
+// ---------- Tab wiring ----------
+const rendered = {};
+function renderTab(name){
+  if(rendered[name]) return;
+  rendered[name] = true;
+  if(name==='overview') buildCumPnlChart();
+  if(name==='varplot') buildVarEsChart(currentMetric);
+  if(name==='backtest'){ buildBacktestTable(); buildYearlyExceptionsChart(); }
+  if(name==='trafficlight') buildTrafficLightChart();
+  if(name==='challenger'){ buildChallengerTable(); buildChallengerChart(); }
+  if(name==='drift'){ buildRollingBreachChart(); buildCalibrationChart(); }
+}
+
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.tabpanel').forEach(p=>p.classList.remove('active'));
+    tab.classList.add('active');
+    const name = tab.dataset.tab;
+    document.getElementById('tab-'+name).classList.add('active');
+    renderTab(name);
+  });
+});
+
+document.querySelectorAll('.btn[data-metric]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.btn[data-metric]').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    currentMetric = btn.dataset.metric;
+    buildVarEsChart(currentMetric);
+  });
+});
+
+// ---------- Init ----------
+buildBriefPanel();
+buildSummaryCards();
+buildPortfolioTable();
+buildCurrentZoneCards();
+renderTab('overview');
+</script>
+</body>
+</html>
