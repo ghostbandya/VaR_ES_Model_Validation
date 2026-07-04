@@ -1,0 +1,38 @@
+# VaR/ES Model Validation - configuration
+# Edit this file to point the pipeline at a different portfolio or change
+# model parameters. Nothing in src/ should have hardcoded portfolio values.
+
+portfolio:
+  notional: 100000000
+  assets:
+    - ticker: SPY
+      weight: 0.30
+      description: US Large-Cap Equity
+    - ticker: QQQ
+      weight: 0.20
+      description: US Tech Equity
+    - ticker: TLT
+      weight: 0.25
+      description: 20+Y US Treasury
+    - ticker: GLD
+      weight: 0.15
+      description: Gold
+    - ticker: EEM
+      weight: 0.10
+      description: Emerging Markets Equity
+
+data:
+  start_date: "2014-01-01"
+
+model:
+  estimation_window: 250      # trailing days used to estimate each day's VaR/ES
+  var_confidence: 0.99        # Basel backtesting standard
+  es_confidence: 0.975        # FRTB IMA standard
+  mc_paths: 5000               # Monte Carlo draws per forecast day
+  divergence_threshold: 0.20   # champion/challenger flag threshold (relative)
+  champion: hs                 # hs | param | mc
+
+brief:
+  model: claude-haiku-4-5-20251001
+  max_tokens: 600
+  drift_lookback_days: 20      # how many recent days of drift series to show the model
