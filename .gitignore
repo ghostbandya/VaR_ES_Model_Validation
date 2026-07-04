@@ -4,13 +4,5 @@ __pycache__/
 .env
 .venv/
 venv/
-.DS_Store
 .pytest_cache/
-# 1. Ignore everything in the root directory
-/*
-# 2. But DO NOT ignore the specific subfolder you want to keep
-!/var-es-model-validation/
-# 3. If there are specific files inside the root you want to keep (like README or gitignore), allow them explicitly:
-!.gitignore
-!README.md
-!requirements.txt
+.DS_Store
